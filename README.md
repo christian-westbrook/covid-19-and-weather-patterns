@@ -5,4 +5,4 @@ Colorado State University
 
 ## Introduction
 
-This repository contains a study performed by graduate students at Colorado State University in an attempt to detect possible correlations between COVID-19 transmission events and weather patterns.
+This repository contains a study performed by graduate students at Colorado State University that attempts to detect possible correlations between COVID-19 transmission events and weather patterns using machine learning techniques.
