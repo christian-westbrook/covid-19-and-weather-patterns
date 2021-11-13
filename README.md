@@ -5,4 +5,9 @@ Colorado State University
 
 ## Introduction
 
-This repository contains a study performed by graduate students at Colorado State University that attempts to detect possible correlations between COVID-19 transmission events and weather patterns using machine learning techniques.
+The goal of this work is to determine whether or not weather patterns should be considered as supporting input data when making predictions about new daily COVID-19 cases within a given geographical space. Using census, weather, and COVID-19 datasets provided by the Urban Sustain project, the authors attempt to quantify the correlation between particular weather patterns and COVID-19 transmission events.
+
+## Tools
+
+TensorFlow: https://www.tensorflow.org/
+Keras: https://keras.io/
