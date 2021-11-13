@@ -9,5 +9,5 @@ The goal of this work is to determine whether or not weather patterns should be 
 
 ## Tools
 
-TensorFlow: https://www.tensorflow.org/
-Keras: https://keras.io/
+TensorFlow: https://www.tensorflow.org/  
+Keras: https://keras.io/  
