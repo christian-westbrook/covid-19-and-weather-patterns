@@ -1,0 +1,4 @@
+tensorflow
+pyyaml
+pandas
+sympy
