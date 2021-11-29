@@ -1,0 +1,7 @@
+chief:
+  - "providence:11888"
+worker:
+  - "salem:11889"
+  - "topeka:11891"
+ps:
+  - "pierre:11890"
