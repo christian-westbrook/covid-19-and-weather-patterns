@@ -1,7 +1,9 @@
-chief:
-  - "providence:11888"
+#chief:
+#  - "providence:11888"
 worker:
-  - "salem:11889"
-  - "topeka:11891"
-ps:
-  - "pierre:11890"
+  - "earth:11889"
+  - "jupiter:11891"
+  - "saturn:11891"
+  - "neptune:11981"
+#ps:
+#  - "pierre:11890"
