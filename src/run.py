@@ -108,11 +108,18 @@ def build_and_test_models(dataframe):
     test_features = test.copy()
     train_labels = train_features.pop('newCaseCount')
     test_labels = test_features.pop('newCaseCount')
-    print("Running Linear Regression for dataset")
+    #print("Running Linear Regression for dataset")
 
-    linear_regression(train_features, train_labels, test_features, test_labels)
+    #linear_regression(train_features, train_labels, test_features, test_labels)
     print("Running DNN for dataset")
     dnn(train_features, train_labels, test_features, test_labels)
+
+
+def run_temperature(df):
+    df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
+    df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
+    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'tempSingleMean', 'tempSingleMaximum', 'tempSingleMinimum', 'tempSingleVariance']]
+    build_and_test_models(df)
 
 
 def run_control(controlFrame):
@@ -121,7 +128,7 @@ def run_control(controlFrame):
         ['date', 'county', 'newCaseCount', 'totalCaseCount', 'totalDeathCount', 'newDeathCount']]
     counties = {'Boulder': 1, 'Grand': 2, 'Larimer': 3, 'Logan': 4, 'Weld': 5, 'Yuma': 6}
     reducedControlFrame['county_index'] = reducedControlFrame.apply(lambda row: counties[row['county']], axis=1)
-    reducedControlFrame = reducedControlFrame[['date', 'county_index', 'newCaseCount']]
+    reducedControlFrame = reducedControlFrame[['date', 'county_index', 'newCaseCount', 'newDeathCount']]
     reducedControlFrame.set_index(['date', 'county_index'], inplace=True, drop=False)
 
     build_and_test_models(reducedControlFrame)
@@ -146,11 +153,18 @@ def prepare_distributed_training(index):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--distributed', action='store_true', default=False)
+    parser.add_argument('--model', choices=['all', 'control', 'temperature'], default='control')
     parser.add_argument('--index', type=int)
     args = parser.parse_args()
     if args.distributed:
         prepare_distributed_training(args.index)
 
     control, covidWind, covidPressure, covidTemperature = data_processing.get_datasets()
-    run_control(control)
+    if args.model == 'all':
+        run_control(control)
+        run_temperature(covidTemperature)
+    elif args.model == 'control':
+        run_control(control)
+    elif args.model == 'temperature':
+        run_temperature(covidTemperature)
 
