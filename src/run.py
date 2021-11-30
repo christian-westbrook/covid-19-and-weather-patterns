@@ -26,14 +26,12 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
         ])
     linear_model.compile(
         optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
-        loss='mean_absolute_error')
+        loss='mean_squared_error')
 
     linear_model.fit(
         train_features,
         train_labels,
         epochs=100,
-        # Suppress logging.
-        verbose=0,
         # Calculate validation results on 20% of the training data.
         validation_split=0.2)
     print("Error")
@@ -63,13 +61,13 @@ def dnn(train_features, train_labels, test_features, test_labels):
             keras.layers.Dense(1)
         ])
 
-    dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
+    dnn_model.compile(loss='mean_squared_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     dnn_model.fit(
         train_features,
         train_labels,
         validation_split=0.2,
         verbose=0, epochs=100)
-    print("Error")
+    print("Mean Squared Error")
     print(dnn_model.evaluate(test_features, test_labels, verbose=0))
     print("Actual - 10")
     print(test_labels[:10])
@@ -85,17 +83,6 @@ def build_and_test_models(dataframe):
     train_labels = train_features.pop('newCaseCount')
     test_labels = test_features.pop('newCaseCount')
     print("Running Linear Regression for dataset")
-    print('train_features')
-    print(train_features)
-
-    print('train_labels')
-    print(train_labels)
-
-    print('test_features')
-    print(test_features)
-
-    print('test_labels')
-    print(test_labels)
 
     linear_regression(train_features, train_labels, test_features, test_labels)
     print("Running DNN for dataset")
@@ -140,5 +127,6 @@ if __name__ == '__main__':
         prepare_distributed_training()
 
     control, covidWind, covidPressure, covidTemperature = data_processing.get_datasets()
+    print(covidWind[['county', 'date', 'windSpeedMean', 'totalCaseCount']].dropna().sample(30))
     run_control(control)
 
