@@ -10,6 +10,24 @@ import data_processing
 import json
 
 distributed_strategy = None
+"""
+To run this distributed, add workers to distributed.yaml. For example:
+worker:
+  - "earth:11889"
+  - "jupiter:11891"
+  - "saturn:11891"
+  - "neptune:11981"
+  
+These workers must be started with the index in this file.
+
+[earth] python run.py --distribute --index 0
+[jupiter] python run.py --distribute --index 1
+[saturn] python run.py --distribute --index 2
+[neptune] python run.py --distribute --index 3
+
+"""
+
+
 
 def linear_regression(train_features, train_labels, test_features, test_labels):
     if distributed_strategy is not None:
@@ -22,7 +40,7 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
             ])
             linear_model.compile(
                 optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
-                loss='mean_squared_error')
+                loss='mean_absolute_error')
     else:
         normalizer = keras.layers.Normalization(axis=-1)
         normalizer.adapt(np.array(train_features))
@@ -32,7 +50,7 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
         ])
     linear_model.compile(
         optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
-        loss='mean_squared_error')
+        loss='mean_absolute_error')
 
     linear_model.fit(
         train_features,
@@ -59,7 +77,7 @@ def dnn(train_features, train_labels, test_features, test_labels):
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(1)
             ])
-            dnn_model.compile(loss='mean_squared_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
+            dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     else:
         normalizer = keras.layers.Normalization(axis=-1)
         normalizer.adapt(np.array(train_features))
@@ -70,7 +88,7 @@ def dnn(train_features, train_labels, test_features, test_labels):
             keras.layers.Dense(1)
         ])
 
-    dnn_model.compile(loss='mean_squared_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
+    dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     dnn_model.fit(
         train_features.to_numpy(),
         train_labels.to_numpy(),
