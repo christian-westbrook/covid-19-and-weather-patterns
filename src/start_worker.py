@@ -38,11 +38,11 @@ with open('../distributed.yaml') as stream:
     distributed_conf = yaml.safe_load(stream)
 tf_config = {
     'cluster': {
-        'chief': distributed_conf['chief'],
+#        'chief': distributed_conf['chief'],
         'worker': distributed_conf['worker'],
-        'ps': distributed_conf['ps'],
+#        'ps': distributed_conf['ps'],
     },
-    'task': {'type': 'chief', 'index': 0}
+    'task': {'type': 'worker', 'index': args.index}
 }
 
 os.environ['TF_CONFIG'] = json.dumps(tf_config)

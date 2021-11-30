@@ -1,25 +1,31 @@
 import numpy as np
 import pandas as pd
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow
 from tensorflow import keras
 import argparse
 import yaml
 import data_processing
-import os
 import json
 
 distributed_strategy = None
 
 def linear_regression(train_features, train_labels, test_features, test_labels):
-    normalizer = keras.layers.Normalization(axis=-1)
-    normalizer.adapt(np.array(train_features))
     if distributed_strategy is not None:
         with distributed_strategy.scope():
+            normalizer = keras.layers.Normalization(axis=-1)
+            normalizer.adapt(np.array(train_features))
             linear_model = keras.Sequential([
                 normalizer,
                 keras.layers.Dense(units=1)
             ])
+            linear_model.compile(
+                optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
+                loss='mean_squared_error')
     else:
+        normalizer = keras.layers.Normalization(axis=-1)
+        normalizer.adapt(np.array(train_features))
         linear_model = keras.Sequential([
             normalizer,
             keras.layers.Dense(units=1)
@@ -43,17 +49,20 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
 
 
 def dnn(train_features, train_labels, test_features, test_labels):
-    normalizer = keras.layers.Normalization(axis=-1)
-    normalizer.adapt(np.array(train_features))
     if distributed_strategy is not None:
         with distributed_strategy.scope():
+            normalizer = keras.layers.Normalization(axis=-1)
+            normalizer.adapt(np.array(train_features))
             dnn_model = keras.Sequential([
                 normalizer,
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(1)
             ])
+            dnn_model.compile(loss='mean_squared_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     else:
+        normalizer = keras.layers.Normalization(axis=-1)
+        normalizer.adapt(np.array(train_features))
         dnn_model = keras.Sequential([
             normalizer,
             keras.layers.Dense(64, activation='relu'),
@@ -63,12 +72,11 @@ def dnn(train_features, train_labels, test_features, test_labels):
 
     dnn_model.compile(loss='mean_squared_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     dnn_model.fit(
-        train_features,
-        train_labels,
-        validation_split=0.2,
-        verbose=0, epochs=100)
-    print("Mean Squared Error")
-    print(dnn_model.evaluate(test_features, test_labels, verbose=0))
+        train_features.to_numpy(),
+        train_labels.to_numpy(),
+        epochs=100)
+    print("Error")
+    print(dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=0))
     print("Actual - 10")
     print(test_labels[:10])
     print("Predicted - 10")
@@ -101,32 +109,30 @@ def run_control(controlFrame):
     build_and_test_models(reducedControlFrame)
 
 
-def prepare_distributed_training():
+def prepare_distributed_training(index):
     global distributed_strategy
     with open('../distributed.yaml') as stream:
         distributed_conf = yaml.safe_load(stream)
     tf_config = {
         'cluster': {
-            'chief': distributed_conf['chief'],
-            'worker': distributed_conf['worker'],
-            'ps': distributed_conf['ps'],
+            'worker': distributed_conf['worker']
         },
-        'task': {'type': 'chief', 'index': 0}
+        'task': {'type': 'worker', 'index': index}
     }
     print(tf_config)
     os.environ['TF_CONFIG'] = json.dumps(tf_config)
     cluster_resolver = tensorflow.distribute.cluster_resolver.TFConfigClusterResolver()
-    distributed_strategy = tensorflow.distribute.experimental.ParameterServerStrategy(cluster_resolver)
+    distributed_strategy = tensorflow.distribute.MultiWorkerMirroredStrategy(cluster_resolver)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--distributed', action='store_true', default=False)
+    parser.add_argument('--index', type=int)
     args = parser.parse_args()
     if args.distributed:
-        prepare_distributed_training()
+        prepare_distributed_training(args.index)
 
     control, covidWind, covidPressure, covidTemperature = data_processing.get_datasets()
-    print(covidWind[['county', 'date', 'windSpeedMean', 'totalCaseCount']].dropna().sample(30))
     run_control(control)
 
