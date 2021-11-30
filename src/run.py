@@ -16,14 +16,14 @@ worker:
   - "earth:11889"
   - "jupiter:11891"
   - "saturn:11891"
-  - "neptune:11981"
+  - "venus:11981"
   
 These workers must be started with the index in this file.
 
 [earth] python run.py --distribute --index 0
 [jupiter] python run.py --distribute --index 1
 [saturn] python run.py --distribute --index 2
-[neptune] python run.py --distribute --index 3
+[venus] python run.py --distribute --index 3
 
 """
 
@@ -55,7 +55,7 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
     linear_model.fit(
         train_features,
         train_labels,
-        epochs=100,
+        epochs=20,
         # Calculate validation results on 20% of the training data.
         validation_split=0.2)
     print("Error")
@@ -92,13 +92,14 @@ def dnn(train_features, train_labels, test_features, test_labels):
     dnn_model.fit(
         train_features.to_numpy(),
         train_labels.to_numpy(),
-        epochs=100)
-    print("Error")
-    print(dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=0))
-    print("Actual - 10")
-    print(test_labels[:10])
-    print("Predicted - 10")
-    print(dnn_model.predict(test_features[:10]))
+        epochs=20)
+    return dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=0)
+
+    # Visually compare a few samples
+    # print("Actual - 10")
+    # print(test_labels[:10])
+    # print("Predicted - 10")
+    # print(dnn_model.predict(test_features[:10]))
 
 
 def build_and_test_models(dataframe):
@@ -112,14 +113,28 @@ def build_and_test_models(dataframe):
 
     #linear_regression(train_features, train_labels, test_features, test_labels)
     print("Running DNN for dataset")
-    dnn(train_features, train_labels, test_features, test_labels)
+    return dnn(train_features, train_labels, test_features, test_labels)
 
 
 def run_temperature(df):
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
     df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'tempSingleMean', 'tempSingleMaximum', 'tempSingleMinimum', 'tempSingleVariance']]
-    build_and_test_models(df)
+    return build_and_test_models(df)
+
+
+def run_pressure(df):
+    df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
+    df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
+    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'corPres', 'staPresMean', 'staPresMaximum', 'staPresMinimum']]
+    return build_and_test_models(df)
+
+
+def run_wind(df):
+    df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
+    df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
+    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'windSpeedMinimum', 'windSpeedMean', 'windSpeedMaximum']]
+    return build_and_test_models(df)
 
 
 def run_control(controlFrame):
@@ -130,8 +145,7 @@ def run_control(controlFrame):
     reducedControlFrame['county_index'] = reducedControlFrame.apply(lambda row: counties[row['county']], axis=1)
     reducedControlFrame = reducedControlFrame[['date', 'county_index', 'newCaseCount', 'newDeathCount']]
     reducedControlFrame.set_index(['date', 'county_index'], inplace=True, drop=False)
-
-    build_and_test_models(reducedControlFrame)
+    return build_and_test_models(reducedControlFrame)
 
 
 def prepare_distributed_training(index):
@@ -153,18 +167,29 @@ def prepare_distributed_training(index):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--distributed', action='store_true', default=False)
-    parser.add_argument('--model', choices=['all', 'control', 'temperature'], default='control')
+    parser.add_argument('--model', choices=['all', 'control', 'temperature', 'pressure', 'wind'], default='all')
     parser.add_argument('--index', type=int)
     args = parser.parse_args()
     if args.distributed:
         prepare_distributed_training(args.index)
 
     control, covidWind, covidPressure, covidTemperature = data_processing.get_datasets()
+    error_values = {}
     if args.model == 'all':
-        run_control(control)
-        run_temperature(covidTemperature)
+        error_values['control'] = run_control(control)
+        error_values['temperature'] = run_temperature(covidTemperature)
+        error_values['pressure'] = run_pressure(covidPressure)
+        error_values['wind'] = run_wind(covidWind)
     elif args.model == 'control':
-        run_control(control)
+        error_values['control'] = run_control(control)
     elif args.model == 'temperature':
-        run_temperature(covidTemperature)
+        error_values['temperature'] = run_temperature(covidTemperature)
+    elif args.model == 'pressure':
+        error_values['pressure'] = run_pressure(covidPressure)
+    elif args.model == 'wind':
+        error_values['wind'] = run_wind(covidWind)
+
+    print("mean_absolute_error")
+    for dsname, error_value in error_values.items():
+        print(f"{dsname}\t\t{error_value}")
 
