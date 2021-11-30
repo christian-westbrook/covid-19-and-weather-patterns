@@ -11,22 +11,27 @@ import json
 distributed_strategy = None
 
 def linear_regression(train_features, train_labels, test_features, test_labels):
-    normalizer = keras.layers.Normalization(axis=-1)
-    normalizer.adapt(np.array(train_features))
     if distributed_strategy is not None:
         with distributed_strategy.scope():
+            normalizer = keras.layers.Normalization(axis=-1)
+            normalizer.adapt(np.array(train_features))
             linear_model = keras.Sequential([
                 normalizer,
                 keras.layers.Dense(units=1)
             ])
+            linear_model.compile(
+                optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
+                loss='mean_absolute_error')
     else:
+        normalizer = keras.layers.Normalization(axis=-1)
+        normalizer.adapt(np.array(train_features))
         linear_model = keras.Sequential([
             normalizer,
             keras.layers.Dense(units=1)
         ])
-    linear_model.compile(
-        optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
-        loss='mean_absolute_error')
+        linear_model.compile(
+            optimizer=tensorflow.optimizers.Adam(learning_rate=0.1),
+            loss='mean_absolute_error')
 
     linear_model.fit(
         train_features,
@@ -45,30 +50,33 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
 
 
 def dnn(train_features, train_labels, test_features, test_labels):
-    normalizer = keras.layers.Normalization(axis=-1)
-    normalizer.adapt(np.array(train_features))
     if distributed_strategy is not None:
         with distributed_strategy.scope():
+            normalizer = keras.layers.Normalization(axis=-1)
+            normalizer.adapt(np.array(train_features))
             dnn_model = keras.Sequential([
                 normalizer,
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(1)
             ])
+            dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     else:
+        normalizer = keras.layers.Normalization(axis=-1)
+        normalizer.adapt(np.array(train_features))
         dnn_model = keras.Sequential([
             normalizer,
             keras.layers.Dense(64, activation='relu'),
             keras.layers.Dense(64, activation='relu'),
             keras.layers.Dense(1)
         ])
+        dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
 
-    dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
     dnn_model.fit(
         train_features,
         train_labels,
         validation_split=0.2,
-        verbose=0, epochs=100)
+        verbose=0, epochs=100, steps_per_epoch=10)
     print("Error")
     print(dnn_model.evaluate(test_features, test_labels, verbose=0))
     print("Actual - 10")
