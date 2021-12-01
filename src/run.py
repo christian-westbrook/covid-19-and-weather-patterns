@@ -165,35 +165,44 @@ def build_and_test_models(dataframe):
     return loss, mae, mse
 
 
-def run_temperature(df):
+def run_temperature(df, pop):
+    reducedPopFrame = pop[['county', '2010_total_population']]
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
+    df = pd.merge(df, reducedPopFrame, how='left', left_on=['county'], right_on=['county'])
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
     df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'totalCaseCount', 'totalDeathCount', 'tempSingleMean', 'tempSingleMaximum', 'tempSingleMinimum', 'tempSingleVariance']]
     return build_and_test_models(df)
 
 
-def run_pressure(df):
+def run_pressure(df, pop):
+    reducedPopFrame = pop[['county', '2010_total_population']]
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
+    df = pd.merge(df, reducedPopFrame, how='left', left_on=['county'], right_on=['county'])
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
     df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'totalCaseCount', 'totalDeathCount', 'corPres', 'staPresMean', 'staPresMaximum', 'staPresMinimum']]
     return build_and_test_models(df)
 
 
-def run_wind(df):
+def run_wind(df, pop):
+    reducedPopFrame = pop[['county', '2010_total_population']]
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
+    df = pd.merge(df, reducedPopFrame, how='left', left_on=['county'], right_on=['county'])
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
     df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'totalCaseCount', 'totalDeathCount', 'windSpeedMinimum', 'windSpeedMean', 'windSpeedMaximum']]
     return build_and_test_models(df)
 
 
-def run_control(controlFrame):
+def run_control(controlFrame, pop):
+    reducedPopFrame = pop[['county', '2010_total_population']]
     controlFrame['date'] = pd.to_datetime(controlFrame['dateString']).dt.strftime("%Y%m%d").astype(int)
     reducedControlFrame = controlFrame[
         ['date', 'county', 'newCaseCount', 'totalCaseCount', 'totalDeathCount', 'newDeathCount']]
+    reducedControlFrame = pd.merge(reducedControlFrame, reducedPopFrame, how='left', left_on=['county'], right_on=['county'])
     counties = {'Boulder': 1, 'Grand': 2, 'Larimer': 3, 'Logan': 4, 'Weld': 5, 'Yuma': 6}
     reducedControlFrame['county_index'] = reducedControlFrame.apply(lambda row: counties[row['county']], axis=1)
-    reducedControlFrame = reducedControlFrame[['date', 'county_index', 'newCaseCount', 'newDeathCount']]
+    reducedControlFrame = reducedControlFrame[['date', 'county_index', 'newCaseCount', 'totalCaseCount', 'totalDeathCount', 'newDeathCount', '2010_total_population']]
     reducedControlFrame.set_index(['date', 'county_index'], inplace=True, drop=False)
+    print(reducedControlFrame.columns)
     return build_and_test_models(reducedControlFrame)
 
 
