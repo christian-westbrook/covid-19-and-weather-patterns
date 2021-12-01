@@ -149,7 +149,7 @@ def lookup_county_from_geometry(county_polygons, geometry):
 
 def create_county_polygons(state, combinedCovidFrame):
     if not os.path.exists(DATA_PATH + f'/county_objects.{state}.pickle'):
-        county_polygons = create_county_polygons(combinedCovidFrame, state)
+        county_polygons = _create_county_polygons(combinedCovidFrame)
         with open(DATA_PATH + f'/county_objects.{state}.pickle', 'wb') as handle:
             pickle.dump(county_polygons, handle)
     else:
