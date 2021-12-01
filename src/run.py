@@ -8,6 +8,7 @@ import argparse
 import yaml
 import data_processing
 import json
+from matplotlib import pyplot
 
 distributed_strategy = None
 """
@@ -66,40 +67,67 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
     print(linear_model.predict(test_features[:10]))
 
 
-def dnn(train_features, train_labels, test_features, test_labels):
+def dnn(train_features, train_labels, val_features, val_labels, test_features, test_labels):
+
+    # Hyperparameters
+    learning_rate_schedule = keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=0.001, 
+        decay_steps=50, 
+        decay_rate=0.98
+    )
+
+    custom_adam = tensorflow.keras.optimizers.Adam(learning_rate=learning_rate_schedule)
+
+    early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=35)
+
     if distributed_strategy is not None:
         with distributed_strategy.scope():
             normalizer = keras.layers.Normalization(axis=-1)
             normalizer.adapt(np.array(train_features))
             dnn_model = keras.Sequential([
                 normalizer,
-                keras.layers.Dense(100, activation='relu'),
+                keras.layers.Dense(128, activation='relu'),
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(32, activation='relu'),
                 keras.layers.Dense(16, activation='relu'),
                 keras.layers.Dense(8, activation='relu'),
+                keras.layers.Dropout(0.5),
                 keras.layers.Dense(1)
             ])
-            dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
+
+            dnn_model.compile(loss='mae', optimizer=custom_adam, metrics=['mae', 'mse'])
     else:
         normalizer = keras.layers.Normalization(axis=-1)
         normalizer.adapt(np.array(train_features))
         dnn_model = keras.Sequential([
             normalizer,
-            keras.layers.Dense(100, activation='relu'),
+            keras.layers.Dense(128, activation='relu'),
             keras.layers.Dense(64, activation='relu'),
             keras.layers.Dense(32, activation='relu'),
             keras.layers.Dense(16, activation='relu'),
-            keras.layers.Dense(8, activation='relu'),
+            keras.layers.Dropout(0.5),
             keras.layers.Dense(1)
         ])
 
-    dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
-    dnn_model.fit(
+        dnn_model.compile(loss='mae', optimizer=custom_adam, metrics=['mae', 'mse'])
+
+    history = dnn_model.fit(
         train_features.to_numpy(),
         train_labels.to_numpy(),
-        epochs=75)
-    return dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=0)
+        batch_size=2048,
+        epochs=1000,
+        validation_data=(val_features.to_numpy(), val_labels.to_numpy()),
+        verbose=0,
+        callbacks=[early_stop]
+    )
+
+    pyplot.plot(history.history['loss'], label='Train Loss')
+    pyplot.plot(history.history['val_loss'], label = 'Validation Loss')
+    pyplot.xlabel('Epoch')
+    pyplot.ylabel('Loss')
+    pyplot.legend(loc='lower right')
+
+    return dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=1)
 
     # Visually compare a few samples
     # print("Actual - 10")
@@ -109,34 +137,40 @@ def dnn(train_features, train_labels, test_features, test_labels):
 
 
 def build_and_test_models(dataframe):
-    train = dataframe.sample(frac=0.8)
-    test = dataframe.drop(train.index)
+    train = dataframe.sample(frac=0.6)
+    dataframe = dataframe.drop(train.index)
+
+    val = dataframe.sample(frac=0.5)
+    test = dataframe.drop(val.index)
+
     train_features = train.copy()
+    val_features = val.copy()
     test_features = test.copy()
     train_labels = train_features.pop('newCaseCount')
+    val_labels = val_features.pop('newCaseCount')
     test_labels = test_features.pop('newCaseCount')
     print("Running DNN for dataset")
-    return dnn(train_features, train_labels, test_features, test_labels)
+    return dnn(train_features, train_labels, val_features, val_labels, test_features, test_labels)
 
 
 def run_temperature(df):
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
-    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'tempSingleMean', 'tempSingleMaximum', 'tempSingleMinimum', 'tempSingleVariance']]
+    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'totalCaseCount', 'totalDeathCount', 'tempSingleMean', 'tempSingleMaximum', 'tempSingleMinimum', 'tempSingleVariance']]
     return build_and_test_models(df)
 
 
 def run_pressure(df):
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
-    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'corPres', 'staPresMean', 'staPresMaximum', 'staPresMinimum']]
+    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'totalCaseCount', 'totalDeathCount', 'corPres', 'staPresMean', 'staPresMaximum', 'staPresMinimum']]
     return build_and_test_models(df)
 
 
 def run_wind(df):
     df['date'] = pd.to_datetime(df['dateString']).dt.strftime("%Y%m%d").astype(int)
     df['county'] = pd.Categorical(df['county'], categories=df['county'].unique()).codes
-    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'windSpeedMinimum', 'windSpeedMean', 'windSpeedMaximum']]
+    df = df[['date', 'county', 'newCaseCount', 'newDeathCount', 'totalCaseCount', 'totalDeathCount', 'windSpeedMinimum', 'windSpeedMean', 'windSpeedMaximum']]
     return build_and_test_models(df)
 
 
@@ -195,4 +229,3 @@ if __name__ == '__main__':
     print("mean_absolute_error")
     for dsname, error_value in error_values.items():
         print(f"{dsname}\t\t{error_value}")
-
