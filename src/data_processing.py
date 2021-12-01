@@ -23,19 +23,15 @@ EXPECTED_DATASETS = {'Colorado': [
 counties = {'Colorado': ['Boulder', 'Grand', 'Larimer', 'Logan', 'Weld', 'Yuma']}
 
 
-def get_datasets(state='Colorado', recalc=False):
+def get_datasets(state='Colorado'):
     # Returns dataframes in order: control, covidWind, covidPressure, covidTemperature
-    if recalc:
-        print("Building Datasets")
-        extract(state)
-        create_pickles(state)
-    elif not all([os.path.exists(f'../data/control.{state}.pkl'), os.path.exists(f'../data/covidWind.{state}.pkl'), os.path.exists(f'../data/covidPressure.{state}.pkl'), os.path.exists(f'../data/covidTemperature.{state}.pkl')]):
-        extract(state)
-        print("One or more .pkl files does not exist. Rebuilding datasets.")
-        create_pickles(state)
 
-    return pd.read_pickle(f'../data/control.{state}.pkl'), pd.read_pickle(f'../data/covidWind.{state}.pkl'), pd.read_pickle(f'../data/covidPressure.{state}.pkl'), pd.read_pickle(f'../data/covidTemperature.{state}.pkl')
+    extract(state)
+    create_pickles(state)
 
+    return pd.read_pickle(f'../data/control.{state}.pkl'), pd.read_pickle(f'../data/covidWind.{state}.pkl'), \
+           pd.read_pickle(f'../data/covidPressure.{state}.pkl'), pd.read_pickle(f'../data/covidTemperature.{state}.pkl'), \
+           pd.read_pickle(f'../data/population.{state}.pkl')
 
 
 def extract(state):
@@ -60,83 +56,122 @@ def extract(state):
 
 
 def create_pickles(state):
+    #### New York Times COVID-19 County Dataset
 
-    print("Processing COVID dataset")
-    flattenedCovidDataFrame = pd.json_normalize(json.load(open(Path(f'../data/covid_county.{state}/data.json'))))
-    flattenedCovidGeometryFrame = pd.json_normalize(json.load(open(Path(f'../data/covid_county.{state}/linkedGeometry.json'))))
+    state = 'Colorado'
+    counties = {'Colorado': ['Boulder', 'Boulder County', 'Grand', 'Grand County', 'Larimer', 'Larimer County', 'Logan',
+                             'Logan County', 'Weld', 'Weld County', 'Yuma', 'Yuma County']}
 
-    print("Combining data geometry for COVID dataset")
-    combinedCovidFrame = flattenedCovidDataFrame.set_index('GISJOIN').join(
-        flattenedCovidGeometryFrame.set_index('GISJOIN'), lsuffix='_data', rsuffix='_geo')
+    if not os.path.exists(f'../data/control.{state}.pkl'):
+        print("Processing COVID dataset")
+        flattenedCovidDataFrame = pd.json_normalize(json.load(open(Path(f'../data/covid_county.{state}/data.json'))))
+        flattenedCovidGeometryFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/covid_county.{state}/linkedGeometry.json'))))
 
-    combinedCovidFrame = combinedCovidFrame[combinedCovidFrame.county.isin(counties[state])]
-    combinedCovidFrame['date'] = pd.to_datetime(combinedCovidFrame['dateString']).dt.date
-    print("Finding County Geometries")
-    county_polygons = create_county_polygons(state, combinedCovidFrame)
+        print("Combining data geometry for COVID dataset")
+        combinedCovidFrame = flattenedCovidDataFrame.set_index('GISJOIN').join(
+            flattenedCovidGeometryFrame.set_index('GISJOIN'), lsuffix='_data', rsuffix='_geo')
 
-    print("Processing Temperature data")
-    flattenedTemperatureDataFrame = pd.json_normalize(json.load(open(Path(f'../data/neon_single_asp_air_temperature.{state}/data.json'))))
-    flattenedTemperatureGeometryFrame = pd.json_normalize(json.load(open(Path(f'../data/neon_single_asp_air_temperature.{state}/linkedGeometry.json'))))
-    flattenedTemperatureGeometryFrame['county'] = flattenedTemperatureGeometryFrame.apply(
-        lambda row: lookup_county_from_geometry(county_polygons, row['geometry.coordinates']), axis=1)
-    combinedTemperatureFrame = flattenedTemperatureDataFrame.set_index('site').join(
-        flattenedTemperatureGeometryFrame.set_index('site'), lsuffix='_data', rsuffix='_geo')
-    combinedTemperatureFrame['date'] = pd.to_datetime(combinedTemperatureFrame['startDateTime']).dt.date
-    combinedTemperatureFrame['datetime'] = pd.to_datetime(combinedTemperatureFrame['startDateTime']).dt.round("H")
-    finalCovidTemperatureFrame = pd.merge(combinedTemperatureFrame, combinedCovidFrame, how='left', left_on=['county', 'date'],
-                                          right_on=['county', 'date'])
-    finalCovidTemperatureFrame = finalCovidTemperatureFrame[finalCovidTemperatureFrame['totalCaseCount'].notna()]
-    finalCovidTemperatureFrame.to_pickle(f'../data/covidTemperature.{state}.pkl')
-    del finalCovidTemperatureFrame
-    del combinedTemperatureFrame
-    del flattenedTemperatureDataFrame
-    gc.collect()
+        combinedCovidFrame = combinedCovidFrame[combinedCovidFrame.county.isin(counties[state])]
+        combinedCovidFrame['date'] = pd.to_datetime(combinedCovidFrame['dateString']).dt.date
+        print("Finding County Geometries")
+        county_polygons = create_county_polygons(state, combinedCovidFrame)
+        combinedCovidFrame.to_pickle(f'../data/control.{state}.pkl')
+    else:
+        combinedCovidFrame = pd.read_pickle(f'../data/control.{state}.pkl')
 
-    print('Processing Pressure data')
-    flattenedPressureDataFrame = pd.json_normalize(json.load(open(Path(f'../data/neon_barometric_pressure.{state}/data.json'))))
-    flattenedPressureGeometryFrame = pd.json_normalize(json.load(open(Path(f'../data/neon_barometric_pressure.{state}/linkedGeometry.json'))))
-    flattenedPressureGeometryFrame['county'] = flattenedPressureGeometryFrame.apply(
-        lambda row: lookup_county_from_geometry(county_polygons, row['geometry.coordinates']), axis=1)
-    combinedPressureFrame = flattenedPressureDataFrame.set_index('site').join(
-        flattenedPressureGeometryFrame.set_index('site'), lsuffix='_data', rsuffix='_geo')
-    combinedPressureFrame['date'] = pd.to_datetime(combinedPressureFrame['startDateTime']).dt.date
-    combinedPressureFrame['datetime'] = pd.to_datetime(combinedPressureFrame['startDateTime']).dt.round("H")
-    finalCovidPressureFrame = pd.merge(combinedPressureFrame, combinedCovidFrame, how='left',
-                                       left_on=['county', 'date'], right_on=['county', 'date'])
-    finalCovidPressureFrame = finalCovidPressureFrame[finalCovidPressureFrame['totalCaseCount'].notna()]
-    finalCovidPressureFrame.to_pickle(f'../data/covidPressure.{state}.pkl')
-    del finalCovidPressureFrame
-    del combinedPressureFrame
-    del flattenedPressureDataFrame
-    gc.collect()
+    #### NEON 2D Wind Dataset
 
-    print('Processing Wind data')
-    flattenedWindDataFrame = pd.json_normalize(json.load(open(Path(f'../data/neon_2d_wind.{state}/data.json'))))
-    flattenedWindGeometryFrame = pd.json_normalize(
-        json.load(open(Path(f'../data/neon_2d_wind.{state}/linkedGeometry.json'))))
-    flattenedWindGeometryFrame['county'] = flattenedWindGeometryFrame.apply(
-        lambda row: lookup_county_from_geometry(county_polygons, row['geometry.coordinates']), axis=1)
-    combinedWindFrame = flattenedWindDataFrame.set_index('site').join(flattenedWindGeometryFrame.set_index('site'), lsuffix='_data', rsuffix='_geo')
-    combinedWindFrame['date'] = pd.to_datetime(combinedWindFrame['startDateTime']).dt.date
-    combinedWindFrame['datetime'] = pd.to_datetime(combinedWindFrame['startDateTime']).dt.round("H")
-    finalCovidWindFrame = pd.merge(combinedWindFrame, combinedCovidFrame, how='left', left_on=['county', 'date'],
-                                   right_on=['county', 'date'])
-    finalCovidWindFrame = finalCovidWindFrame[finalCovidWindFrame['totalCaseCount'].notna()]
-    finalCovidWindFrame.to_pickle(f'../data/covidWind.{state}.pkl')
-    del finalCovidWindFrame
-    del combinedWindFrame
-    del flattenedWindDataFrame
-    gc.collect()
+    if not os.path.exists(f'../data/covidWind.{state}.pkl'):
+        print('Processing Wind data')
+        flattenedWindDataFrame = pd.json_normalize(json.load(open(Path(f'../data/neon_2d_wind.{state}/data.json'))))
+        flattenedWindGeometryFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/neon_2d_wind.{state}/linkedGeometry.json'))))
+        flattenedWindGeometryFrame['county'] = flattenedWindGeometryFrame.apply(
+            lambda row: lookup_county_from_geometry(county_polygons, row['geometry.coordinates']),
+            axis=1)
+        combinedWindFrame = flattenedWindDataFrame.set_index('site').join(flattenedWindGeometryFrame.set_index('site'),
+                                                                          lsuffix='_data', rsuffix='_geo')
+        combinedWindFrame['date'] = pd.to_datetime(combinedWindFrame['startDateTime']).dt.date
+        combinedWindFrame['datetime'] = pd.to_datetime(combinedWindFrame['startDateTime']).dt.round("H")
+        finalCovidWindFrame = pd.merge(combinedWindFrame, combinedCovidFrame, how='left', left_on=['county', 'date'],
+                                       right_on=['county', 'date'])
+        finalCovidWindFrame = finalCovidWindFrame[finalCovidWindFrame['totalCaseCount'].notna()]
+        finalCovidWindFrame.to_pickle(f'../data/covidWind.{state}.pkl')
+        del finalCovidWindFrame
+        del combinedWindFrame
+        del flattenedWindDataFrame
+        gc.collect()
 
-    print('Processing Population data')
+    #### NEON Barometric Pressure Dataset
+
+    if not os.path.exists(f'../data/covidPressure.{state}.pkl'):
+        print('Processing Pressure data')
+        flattenedPressureDataFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/neon_barometric_pressure.{state}/data.json'))))
+        flattenedPressureGeometryFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/neon_barometric_pressure.{state}/linkedGeometry.json'))))
+        flattenedPressureGeometryFrame['county'] = flattenedPressureGeometryFrame.apply(
+            lambda row: lookup_county_from_geometry(county_polygons, row['geometry.coordinates']),
+            axis=1)
+        combinedPressureFrame = flattenedPressureDataFrame.set_index('site').join(
+            flattenedPressureGeometryFrame.set_index('site'), lsuffix='_data', rsuffix='_geo')
+        combinedPressureFrame['date'] = pd.to_datetime(combinedPressureFrame['startDateTime']).dt.date
+        combinedPressureFrame['datetime'] = pd.to_datetime(combinedPressureFrame['startDateTime']).dt.round("H")
+        finalCovidPressureFrame = pd.merge(combinedPressureFrame, combinedCovidFrame, how='left',
+                                           left_on=['county', 'date'], right_on=['county', 'date'])
+        finalCovidPressureFrame = finalCovidPressureFrame[finalCovidPressureFrame['totalCaseCount'].notna()]
+        finalCovidPressureFrame.to_pickle(f'../data/covidPressure.{state}.pkl')
+        del finalCovidPressureFrame
+        del combinedPressureFrame
+        del flattenedPressureDataFrame
+        gc.collect()
+
+    #### NEON Air Temperature
+
+    if not os.path.exists(f'../data/covidTemperature.{state}.pkl'):
+        print("Processing Temperature data")
+        flattenedTemperatureDataFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/neon_single_asp_air_temperature.{state}/data.json'))))
+        flattenedTemperatureGeometryFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/neon_single_asp_air_temperature.{state}/linkedGeometry.json'))))
+        flattenedTemperatureGeometryFrame['county'] = flattenedTemperatureGeometryFrame.apply(
+            lambda row: lookup_county_from_geometry(county_polygons, row['geometry.coordinates']),
+            axis=1)
+        combinedTemperatureFrame = flattenedTemperatureDataFrame.set_index('site').join(
+            flattenedTemperatureGeometryFrame.set_index('site'), lsuffix='_data', rsuffix='_geo')
+        combinedTemperatureFrame['date'] = pd.to_datetime(combinedTemperatureFrame['startDateTime']).dt.date
+        combinedTemperatureFrame['datetime'] = pd.to_datetime(combinedTemperatureFrame['startDateTime']).dt.round("H")
+        finalCovidTemperatureFrame = pd.merge(combinedTemperatureFrame, combinedCovidFrame, how='left',
+                                              left_on=['county', 'date'],
+                                              right_on=['county', 'date'])
+        finalCovidTemperatureFrame = finalCovidTemperatureFrame[finalCovidTemperatureFrame['totalCaseCount'].notna()]
+        finalCovidTemperatureFrame.to_pickle(f'../data/covidTemperature.{state}.pkl')
+        del finalCovidTemperatureFrame
+        del combinedTemperatureFrame
+        del flattenedTemperatureDataFrame
+        gc.collect()
+
+
+    #### U.S. Census Total County Population Dataset
+
+    # print('Processing Population data')
     flattenedPopulationDataFrame = pd.json_normalize(
         json.load(open(Path(f'../data/county_total_population.{state}/data.json'))))
     flattenedPopulationGeometryFrame = pd.json_normalize(
         json.load(open(Path(f'../data/county_total_population.{state}/linkedGeometry.json'))))
 
-    combinedPopulationFrame = flattenedPopulationDataFrame.set_index('GISJOIN').join(flattenedPopulationGeometryFrame.set_index('GISJOIN'), lsuffix='_data', rsuffix='_geo')
-    combinedCovidFrame.to_pickle(f'../data/control.{state}.pkl')
+    combinedPopulationFrame = flattenedPopulationDataFrame.set_index('GISJOIN').join(
+        flattenedPopulationGeometryFrame.set_index('GISJOIN'), lsuffix='_data', rsuffix='_geo')
+    combinedPopulationFrame = combinedPopulationFrame[combinedPopulationFrame.COUNTY.isin(counties[state])]
+    combinedPopulationFrame['county'] = combinedPopulationFrame['COUNTY'].map(
+        {'Boulder County': 'Boulder', 'Grand County': 'Grand', 'Larimer County': 'Larimer', 'Logan County': 'Logan',
+         'Weld County': 'Weld', 'Yuma County': 'Yuma'})
     combinedPopulationFrame.to_pickle(f'../data/population.{state}.pkl')
+
+
+
+
 
 
 def lookup_county_from_geometry(county_polygons, geometry):

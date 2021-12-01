@@ -231,21 +231,21 @@ if __name__ == '__main__':
     if args.distributed:
         prepare_distributed_training(args.index)
 
-    control, covidWind, covidPressure, covidTemperature = data_processing.get_datasets()
+    control, covidWind, covidPressure, covidTemperature, pop = data_processing.get_datasets()
     error_values = {}
     if args.model == 'all':
-        error_values['control'] = run_control(control)
-        error_values['temperature'] = run_temperature(covidTemperature)
-        error_values['pressure'] = run_pressure(covidPressure)
-        error_values['wind'] = run_wind(covidWind)
+        error_values['control'] = run_control(control, pop)
+        error_values['temperature'] = run_temperature(covidTemperature, pop)
+        error_values['pressure'] = run_pressure(covidPressure, pop)
+        error_values['wind'] = run_wind(covidWind, pop)
     elif args.model == 'control':
-        error_values['control'] = run_control(control)
+        error_values['control'] = run_control(control, pop)
     elif args.model == 'temperature':
-        error_values['temperature'] = run_temperature(covidTemperature)
+        error_values['temperature'] = run_temperature(covidTemperature, pop)
     elif args.model == 'pressure':
-        error_values['pressure'] = run_pressure(covidPressure)
+        error_values['pressure'] = run_pressure(covidPressure, pop)
     elif args.model == 'wind':
-        error_values['wind'] = run_wind(covidWind)
+        error_values['wind'] = run_wind(covidWind, pop)
 
     print("mean_absolute_error")
     for dsname, error_value in error_values.items():
