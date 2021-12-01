@@ -73,8 +73,11 @@ def dnn(train_features, train_labels, test_features, test_labels):
             normalizer.adapt(np.array(train_features))
             dnn_model = keras.Sequential([
                 normalizer,
+                keras.layers.Dense(100, activation='relu'),
                 keras.layers.Dense(64, activation='relu'),
-                keras.layers.Dense(64, activation='relu'),
+                keras.layers.Dense(32, activation='relu'),
+                keras.layers.Dense(16, activation='relu'),
+                keras.layers.Dense(8, activation='relu'),
                 keras.layers.Dense(1)
             ])
             dnn_model.compile(loss='mean_absolute_error', optimizer=tensorflow.keras.optimizers.Adam(0.001))
@@ -83,8 +86,11 @@ def dnn(train_features, train_labels, test_features, test_labels):
         normalizer.adapt(np.array(train_features))
         dnn_model = keras.Sequential([
             normalizer,
+            keras.layers.Dense(100, activation='relu'),
             keras.layers.Dense(64, activation='relu'),
-            keras.layers.Dense(64, activation='relu'),
+            keras.layers.Dense(32, activation='relu'),
+            keras.layers.Dense(16, activation='relu'),
+            keras.layers.Dense(8, activation='relu'),
             keras.layers.Dense(1)
         ])
 
@@ -92,7 +98,7 @@ def dnn(train_features, train_labels, test_features, test_labels):
     dnn_model.fit(
         train_features.to_numpy(),
         train_labels.to_numpy(),
-        epochs=20)
+        epochs=75)
     return dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=0)
 
     # Visually compare a few samples
@@ -109,9 +115,6 @@ def build_and_test_models(dataframe):
     test_features = test.copy()
     train_labels = train_features.pop('newCaseCount')
     test_labels = test_features.pop('newCaseCount')
-    #print("Running Linear Regression for dataset")
-
-    #linear_regression(train_features, train_labels, test_features, test_labels)
     print("Running DNN for dataset")
     return dnn(train_features, train_labels, test_features, test_labels)
 
