@@ -156,18 +156,19 @@ def create_pickles(state):
     #### U.S. Census Total County Population Dataset
 
     # print('Processing Population data')
-    flattenedPopulationDataFrame = pd.json_normalize(
-        json.load(open(Path(f'../data/county_total_population.{state}/data.json'))))
-    flattenedPopulationGeometryFrame = pd.json_normalize(
-        json.load(open(Path(f'../data/county_total_population.{state}/linkedGeometry.json'))))
+    if not os.path.exists(f'../data/population.{state}.pkl'):
+        flattenedPopulationDataFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/county_total_population.{state}/data.json'))))
+        flattenedPopulationGeometryFrame = pd.json_normalize(
+            json.load(open(Path(f'../data/county_total_population.{state}/linkedGeometry.json'))))
 
-    combinedPopulationFrame = flattenedPopulationDataFrame.set_index('GISJOIN').join(
-        flattenedPopulationGeometryFrame.set_index('GISJOIN'), lsuffix='_data', rsuffix='_geo')
-    combinedPopulationFrame = combinedPopulationFrame[combinedPopulationFrame.COUNTY.isin(counties[state])]
-    combinedPopulationFrame['county'] = combinedPopulationFrame['COUNTY'].map(
-        {'Boulder County': 'Boulder', 'Grand County': 'Grand', 'Larimer County': 'Larimer', 'Logan County': 'Logan',
-         'Weld County': 'Weld', 'Yuma County': 'Yuma'})
-    combinedPopulationFrame.to_pickle(f'../data/population.{state}.pkl')
+        combinedPopulationFrame = flattenedPopulationDataFrame.set_index('GISJOIN').join(
+            flattenedPopulationGeometryFrame.set_index('GISJOIN'), lsuffix='_data', rsuffix='_geo')
+        combinedPopulationFrame = combinedPopulationFrame[combinedPopulationFrame.COUNTY.isin(counties[state])]
+        combinedPopulationFrame['county'] = combinedPopulationFrame['COUNTY'].map(
+            {'Boulder County': 'Boulder', 'Grand County': 'Grand', 'Larimer County': 'Larimer', 'Logan County': 'Logan',
+             'Weld County': 'Weld', 'Yuma County': 'Yuma'})
+        combinedPopulationFrame.to_pickle(f'../data/population.{state}.pkl')
 
 
 
