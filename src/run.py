@@ -67,18 +67,18 @@ def linear_regression(train_features, train_labels, test_features, test_labels):
     print(linear_model.predict(test_features[:10]))
 
 
-def dnn(train_features, train_labels, val_features, val_labels, test_features, test_labels):
+def dnn(train_features, train_labels, val_features, val_labels, learning_rate, decay_steps, decay_rate, epochs, patience):
 
     # Hyperparameters
     learning_rate_schedule = keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate=0.001, 
-        decay_steps=50, 
-        decay_rate=0.98
+        initial_learning_rate=learning_rate, 
+        decay_steps=decay_steps, 
+        decay_rate=decay_rate
     )
 
     custom_adam = tensorflow.keras.optimizers.Adam(learning_rate=learning_rate_schedule)
 
-    early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=35)
+    early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=patience)
 
     if distributed_strategy is not None:
         with distributed_strategy.scope():
@@ -90,7 +90,6 @@ def dnn(train_features, train_labels, val_features, val_labels, test_features, t
                 keras.layers.Dense(64, activation='relu'),
                 keras.layers.Dense(32, activation='relu'),
                 keras.layers.Dense(16, activation='relu'),
-                keras.layers.Dense(8, activation='relu'),
                 keras.layers.Dropout(0.5),
                 keras.layers.Dense(1)
             ])
@@ -115,19 +114,13 @@ def dnn(train_features, train_labels, val_features, val_labels, test_features, t
         train_features.to_numpy(),
         train_labels.to_numpy(),
         batch_size=2048,
-        epochs=1000,
+        epochs=epochs,
         validation_data=(val_features.to_numpy(), val_labels.to_numpy()),
         verbose=0,
         callbacks=[early_stop]
     )
 
-    pyplot.plot(history.history['loss'], label='Train Loss')
-    pyplot.plot(history.history['val_loss'], label = 'Validation Loss')
-    pyplot.xlabel('Epoch')
-    pyplot.ylabel('Loss')
-    pyplot.legend(loc='lower right')
-
-    return dnn_model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=1)
+    return dnn_model, history
 
     # Visually compare a few samples
     # print("Actual - 10")
@@ -137,6 +130,7 @@ def dnn(train_features, train_labels, val_features, val_labels, test_features, t
 
 
 def build_and_test_models(dataframe):
+    # Training testing validating split
     train = dataframe.sample(frac=0.6)
     dataframe = dataframe.drop(train.index)
 
@@ -149,8 +143,26 @@ def build_and_test_models(dataframe):
     train_labels = train_features.pop('newCaseCount')
     val_labels = val_features.pop('newCaseCount')
     test_labels = test_features.pop('newCaseCount')
+
+    # Hyperparameters
+    learning_rate = 0.001 # Adam initial learning rate
+    decay_steps = 35 # Steps before learning rate decay
+    decay_rate = 0.98 # Rate at which learning rate decays
+    epochs = 1000 # Number of complete passes across the training set
+    patience = 35 # Number of steps with no progress we'll tolerate before early stopping
+
     print("Running DNN for dataset")
-    return dnn(train_features, train_labels, val_features, val_labels, test_features, test_labels)
+    model, history = dnn(train_features, train_labels, val_features, val_labels, learning_rate, decay_steps, decay_rate, epochs, patience)
+
+    pyplot.plot(history.history['loss'], label='Train Loss')
+    pyplot.plot(history.history['val_loss'], label = 'Validation Loss')
+    pyplot.xlabel('Epoch')
+    pyplot.ylabel('Loss')
+    pyplot.legend(loc='lower right')
+
+    loss, mae, mse = model.evaluate(test_features.to_numpy(), test_labels.to_numpy(), verbose=1)
+
+    return loss, mae, mse
 
 
 def run_temperature(df):
